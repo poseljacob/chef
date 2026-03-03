@@ -3,7 +3,6 @@ import { useStore } from '@nanostores/react';
 import type { LinksFunction } from '@vercel/remix';
 import { json, redirect } from '@vercel/remix';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData, useRouteError } from '@remix-run/react';
-import { createHash } from 'node:crypto';
 import { themeStore } from './lib/stores/theme';
 import { stripIndents } from 'chef-agent/utils/stripIndent';
 import { createHead } from 'remix-island';
@@ -24,7 +23,6 @@ import 'allotment/dist/style.css';
 import { ErrorDisplay } from './components/ErrorComponent';
 import useVersionNotificationBanner from './components/VersionNotificationBanner';
 import {
-  debugVerifyGetBotsHandoffToken,
   clearGetBotsSessionCookie,
   createGetBotsSessionCookie,
   createGetBotsSessionToken,
@@ -56,15 +54,11 @@ export async function loader({ request }: { request: Request }) {
     globalThis.process.env.GETBOTS_DEFAULT_TEAM_SLUG || globalThis.process.env.CHEF_PROVISION_TEAM_SLUG || '';
 
   let getBotsSession = readGetBotsSessionFromRequest(request, getBotsHandoffSecret);
-  let handoffState: 'none' | 'no-secret' | 'invalid' | 'ok' = 'none';
   const handoffToken = url.searchParams.get('handoff');
   if (handoffToken) {
-    if (!getBotsHandoffSecret) {
-      handoffState = 'no-secret';
-    } else {
+    if (getBotsHandoffSecret) {
       const handoffPayload = verifyGetBotsHandoffToken(handoffToken, getBotsHandoffSecret);
       if (handoffPayload) {
-        handoffState = 'ok';
         const sessionToken = createGetBotsSessionToken({
           userId: handoffPayload.userId,
           appId: handoffPayload.appId,
@@ -81,22 +75,9 @@ export async function loader({ request }: { request: Request }) {
         return redirect(cleaned.toString(), {
           headers: {
             'Set-Cookie': createGetBotsSessionCookie(sessionToken, GETBOTS_SESSION_TTL_SEC),
-            'X-GetBots-Handoff-State': handoffState,
           },
         });
       }
-      const tokenSig = handoffToken.split('.')[1] ?? '';
-      const debug = debugVerifyGetBotsHandoffToken(handoffToken, getBotsHandoffSecret);
-      console.log('[getbots-handoff] invalid token', {
-        reason: debug.reason,
-        sigMatches: debug.sigMatches,
-        version: debug.version,
-        expiresAt: debug.expiresAt,
-        now: debug.now,
-        secretHashPrefix: createHash('sha256').update(getBotsHandoffSecret).digest('hex').slice(0, 12),
-        tokenSigPrefix: tokenSig.slice(0, 12),
-      });
-      handoffState = 'invalid';
     }
   }
 
@@ -106,7 +87,6 @@ export async function loader({ request }: { request: Request }) {
     return redirect(destination.toString(), {
       headers: {
         'Set-Cookie': clearGetBotsSessionCookie(),
-        'X-GetBots-Handoff-State': handoffState,
       },
     });
   }
@@ -117,9 +97,6 @@ export async function loader({ request }: { request: Request }) {
       CONVEX_OAUTH_CLIENT_ID,
       WORKOS_REDIRECT_URI,
       GETBOTS_EXTERNAL_MODE: getBotsSession ? '1' : '0',
-      GETBOTS_HANDOFF_CONFIGURED: getBotsHandoffSecret ? '1' : '0',
-      GETBOTS_REQUIRE_HANDOFF: requireGetBotsHandoff ? '1' : '0',
-      GETBOTS_HANDOFF_STATE: handoffState,
       GETBOTS_USER_ID: getBotsSession?.payload.userId ?? '',
       GETBOTS_APP_ID: getBotsSession?.payload.appId ?? '',
       GETBOTS_APP_NAME: getBotsSession?.payload.appName ?? '',
