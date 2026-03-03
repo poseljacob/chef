@@ -54,28 +54,36 @@ export async function loader({ request }: { request: Request }) {
     globalThis.process.env.GETBOTS_DEFAULT_TEAM_SLUG || globalThis.process.env.CHEF_PROVISION_TEAM_SLUG || '';
 
   let getBotsSession = readGetBotsSessionFromRequest(request, getBotsHandoffSecret);
+  let handoffState: 'none' | 'no-secret' | 'invalid' | 'ok' = 'none';
   const handoffToken = url.searchParams.get('handoff');
-  if (handoffToken && getBotsHandoffSecret) {
-    const handoffPayload = verifyGetBotsHandoffToken(handoffToken, getBotsHandoffSecret);
-    if (handoffPayload) {
-      const sessionToken = createGetBotsSessionToken({
-        userId: handoffPayload.userId,
-        appId: handoffPayload.appId,
-        appName: handoffPayload.appName,
-        prompt: handoffPayload.prompt,
-        ttlSec: GETBOTS_SESSION_TTL_SEC,
-        secret: getBotsHandoffSecret,
-      });
-      const cleaned = new URL(request.url);
-      cleaned.searchParams.delete('handoff');
-      if (!cleaned.searchParams.get('prefill') && handoffPayload.prompt) {
-        cleaned.searchParams.set('prefill', handoffPayload.prompt);
+  if (handoffToken) {
+    if (!getBotsHandoffSecret) {
+      handoffState = 'no-secret';
+    } else {
+      const handoffPayload = verifyGetBotsHandoffToken(handoffToken, getBotsHandoffSecret);
+      if (handoffPayload) {
+        handoffState = 'ok';
+        const sessionToken = createGetBotsSessionToken({
+          userId: handoffPayload.userId,
+          appId: handoffPayload.appId,
+          appName: handoffPayload.appName,
+          prompt: handoffPayload.prompt,
+          ttlSec: GETBOTS_SESSION_TTL_SEC,
+          secret: getBotsHandoffSecret,
+        });
+        const cleaned = new URL(request.url);
+        cleaned.searchParams.delete('handoff');
+        if (!cleaned.searchParams.get('prefill') && handoffPayload.prompt) {
+          cleaned.searchParams.set('prefill', handoffPayload.prompt);
+        }
+        return redirect(cleaned.toString(), {
+          headers: {
+            'Set-Cookie': createGetBotsSessionCookie(sessionToken, GETBOTS_SESSION_TTL_SEC),
+            'X-GetBots-Handoff-State': handoffState,
+          },
+        });
       }
-      return redirect(cleaned.toString(), {
-        headers: {
-          'Set-Cookie': createGetBotsSessionCookie(sessionToken, GETBOTS_SESSION_TTL_SEC),
-        },
-      });
+      handoffState = 'invalid';
     }
   }
 
@@ -85,6 +93,7 @@ export async function loader({ request }: { request: Request }) {
     return redirect(destination.toString(), {
       headers: {
         'Set-Cookie': clearGetBotsSessionCookie(),
+        'X-GetBots-Handoff-State': handoffState,
       },
     });
   }
@@ -97,6 +106,7 @@ export async function loader({ request }: { request: Request }) {
       GETBOTS_EXTERNAL_MODE: getBotsSession ? '1' : '0',
       GETBOTS_HANDOFF_CONFIGURED: getBotsHandoffSecret ? '1' : '0',
       GETBOTS_REQUIRE_HANDOFF: requireGetBotsHandoff ? '1' : '0',
+      GETBOTS_HANDOFF_STATE: handoffState,
       GETBOTS_USER_ID: getBotsSession?.payload.userId ?? '',
       GETBOTS_APP_ID: getBotsSession?.payload.appId ?? '',
       GETBOTS_APP_NAME: getBotsSession?.payload.appName ?? '',
