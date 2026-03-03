@@ -95,6 +95,8 @@ export async function loader({ request }: { request: Request }) {
       CONVEX_OAUTH_CLIENT_ID,
       WORKOS_REDIRECT_URI,
       GETBOTS_EXTERNAL_MODE: getBotsSession ? '1' : '0',
+      GETBOTS_HANDOFF_CONFIGURED: getBotsHandoffSecret ? '1' : '0',
+      GETBOTS_REQUIRE_HANDOFF: requireGetBotsHandoff ? '1' : '0',
       GETBOTS_USER_ID: getBotsSession?.payload.userId ?? '',
       GETBOTS_APP_ID: getBotsSession?.payload.appId ?? '',
       GETBOTS_APP_NAME: getBotsSession?.payload.appName ?? '',
