@@ -30,8 +30,8 @@ import {
   verifyGetBotsHandoffToken,
 } from './lib/getbots-handoff.server';
 
-const GETBOTS_SESSION_TTL_SEC = Number(process.env.GETBOTS_SESSION_TTL_SEC ?? 60 * 60 * 24 * 30);
-const DEFAULT_GETBOTS_APP_URL = process.env.GETBOTS_APP_URL || 'https://www.getbots.ai';
+const GETBOTS_SESSION_TTL_SEC = Number(globalThis.process.env.GETBOTS_SESSION_TTL_SEC ?? 60 * 60 * 24 * 30);
+const DEFAULT_GETBOTS_APP_URL = globalThis.process.env.GETBOTS_APP_URL || 'https://www.getbots.ai';
 
 function shouldProtectPath(pathname: string): boolean {
   return !pathname.startsWith('/share/');
@@ -40,17 +40,18 @@ function shouldProtectPath(pathname: string): boolean {
 export async function loader({ request }: { request: Request }) {
   // These environment variables are available in the client (they aren't secret).
   // eslint-disable-next-line local/no-direct-process-env
-  const CONVEX_URL = process.env.VITE_CONVEX_URL || globalThis.process.env.CONVEX_URL!;
+  const CONVEX_URL = globalThis.process.env.VITE_CONVEX_URL || globalThis.process.env.CONVEX_URL!;
   const CONVEX_OAUTH_CLIENT_ID = globalThis.process.env.CONVEX_OAUTH_CLIENT_ID!;
   const WORKOS_REDIRECT_URI =
     globalThis.process.env.VITE_WORKOS_REDIRECT_URI || globalThis.process.env.VERCEL_BRANCH_URL!;
 
   const url = new URL(request.url);
-  const getBotsHandoffSecret = process.env.GETBOTS_HANDOFF_SECRET ?? '';
+  const getBotsHandoffSecret = globalThis.process.env.GETBOTS_HANDOFF_SECRET ?? '';
   const requireGetBotsHandoff =
-    (process.env.GETBOTS_REQUIRE_HANDOFF ?? (getBotsHandoffSecret ? '1' : '0')) === '1';
+    (globalThis.process.env.GETBOTS_REQUIRE_HANDOFF ?? (getBotsHandoffSecret ? '1' : '0')) === '1';
   const getBotsAppUrl = DEFAULT_GETBOTS_APP_URL;
-  const getBotsDefaultTeamSlug = process.env.GETBOTS_DEFAULT_TEAM_SLUG || process.env.CHEF_PROVISION_TEAM_SLUG || '';
+  const getBotsDefaultTeamSlug =
+    globalThis.process.env.GETBOTS_DEFAULT_TEAM_SLUG || globalThis.process.env.CHEF_PROVISION_TEAM_SLUG || '';
 
   let getBotsSession = readGetBotsSessionFromRequest(request, getBotsHandoffSecret);
   const handoffToken = url.searchParams.get('handoff');
