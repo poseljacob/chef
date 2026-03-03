@@ -9,38 +9,44 @@ import { ContainerBootState, waitForBootStepCompleted } from '~/lib/stores/conta
 import { toast } from 'sonner';
 import { waitForConvexProjectConnection } from '~/lib/stores/convexProject';
 import { useAuth } from '@workos-inc/authkit-react';
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
 
 const CREATE_PROJECT_TIMEOUT = 15000;
 
 export function useHomepageInitializeChat(chatId: string, setChatInitialized: (chatInitialized: boolean) => void) {
   const convex = useConvex();
   const { signIn } = useAuth();
+  const getBots = getGetBotsStudioContext();
   const chefAuthState = useChefAuth();
   const isFullyLoggedIn = chefAuthState.kind === 'fullyLoggedIn';
   return useCallback(async () => {
     if (!isFullyLoggedIn) {
-      signIn();
+      if (!getBots.externalMode) {
+        signIn();
+      }
       return false;
     }
     const sessionId = await waitForConvexSessionId('useInitializeChat');
-    const selectedTeamSlug = selectedTeamSlugStore.get();
-    if (selectedTeamSlug === null) {
-      // If the user hasn't selected a team, don't initialize the chat.
-      return false;
-    }
+    let projectInitParams: { teamSlug: string; workosAccessToken: string } | undefined;
+    if (!getBots.externalMode) {
+      const selectedTeamSlug = selectedTeamSlugStore.get();
+      if (selectedTeamSlug === null) {
+        // If the user hasn't selected a team, don't initialize the chat.
+        return false;
+      }
 
-    const workosAccessToken = getConvexAuthToken(convex);
-    if (!workosAccessToken) {
-      console.error('No WorkOS access token');
-      toast.error('Unexpected error creating chat');
-      return false;
+      const workosAccessToken = getConvexAuthToken(convex);
+      if (!workosAccessToken) {
+        console.error('No WorkOS access token');
+        toast.error('Unexpected error creating chat');
+        return false;
+      }
+      const teamSlug = await waitForSelectedTeamSlug('useInitializeChat');
+      projectInitParams = {
+        teamSlug,
+        workosAccessToken,
+      };
     }
-    const teamSlug = await waitForSelectedTeamSlug('useInitializeChat');
-
-    const projectInitParams = {
-      teamSlug,
-      workosAccessToken,
-    };
 
     // Initialize the chat and start project creation
     await convex.mutation(api.messages.initializeChat, {
@@ -73,24 +79,28 @@ export function useHomepageInitializeChat(chatId: string, setChatInitialized: (c
     // Wait for the WebContainer to have its snapshot loaded before sending a message.
     await waitForBootStepCompleted(ContainerBootState.LOADING_SNAPSHOT);
     return true;
-  }, [convex, chatId, isFullyLoggedIn, setChatInitialized, signIn]);
+  }, [convex, chatId, isFullyLoggedIn, setChatInitialized, signIn, getBots.externalMode]);
 }
 
 export function useExistingInitializeChat(chatId: string) {
   const convex = useConvex();
+  const getBots = getGetBotsStudioContext();
   return useCallback(async () => {
     const sessionId = await waitForConvexSessionId('useInitializeChat');
-    const teamSlug = await waitForSelectedTeamSlug('useInitializeChat');
-    const workosAccessToken = getConvexAuthToken(convex);
-    if (!workosAccessToken) {
-      console.error('No WorkOS access token');
-      toast.error('Unexpected error creating chat');
-      return false;
+    let projectInitParams: { teamSlug: string; workosAccessToken: string } | undefined;
+    if (!getBots.externalMode) {
+      const teamSlug = await waitForSelectedTeamSlug('useInitializeChat');
+      const workosAccessToken = getConvexAuthToken(convex);
+      if (!workosAccessToken) {
+        console.error('No WorkOS access token');
+        toast.error('Unexpected error creating chat');
+        return false;
+      }
+      projectInitParams = {
+        teamSlug,
+        workosAccessToken,
+      };
     }
-    const projectInitParams = {
-      teamSlug,
-      workosAccessToken,
-    };
     await convex.mutation(api.messages.initializeChat, {
       id: chatId,
       sessionId,
@@ -100,5 +110,5 @@ export function useExistingInitializeChat(chatId: string) {
     // We don't need to wait for container boot here since we don't mount
     // the UI until it's fully ready.
     return true;
-  }, [convex, chatId]);
+  }, [convex, chatId, getBots.externalMode]);
 }

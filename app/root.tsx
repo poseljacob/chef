@@ -1,7 +1,7 @@
 import { captureRemixErrorBoundaryError, captureMessage } from '@sentry/remix';
 import { useStore } from '@nanostores/react';
 import type { LinksFunction } from '@vercel/remix';
-import { json } from '@vercel/remix';
+import { json, redirect } from '@vercel/remix';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData, useRouteError } from '@remix-run/react';
 import { themeStore } from './lib/stores/theme';
 import { stripIndents } from 'chef-agent/utils/stripIndent';
@@ -22,16 +22,84 @@ import 'allotment/dist/style.css';
 
 import { ErrorDisplay } from './components/ErrorComponent';
 import useVersionNotificationBanner from './components/VersionNotificationBanner';
+import {
+  clearGetBotsSessionCookie,
+  createGetBotsSessionCookie,
+  createGetBotsSessionToken,
+  readGetBotsSessionFromRequest,
+  verifyGetBotsHandoffToken,
+} from './lib/getbots-handoff.server';
 
-export async function loader() {
+const GETBOTS_SESSION_TTL_SEC = Number(process.env.GETBOTS_SESSION_TTL_SEC ?? 60 * 60 * 24 * 30);
+const DEFAULT_GETBOTS_APP_URL = process.env.GETBOTS_APP_URL || 'https://www.getbots.ai';
+
+function shouldProtectPath(pathname: string): boolean {
+  return !pathname.startsWith('/share/');
+}
+
+export async function loader({ request }: { request: Request }) {
   // These environment variables are available in the client (they aren't secret).
   // eslint-disable-next-line local/no-direct-process-env
   const CONVEX_URL = process.env.VITE_CONVEX_URL || globalThis.process.env.CONVEX_URL!;
   const CONVEX_OAUTH_CLIENT_ID = globalThis.process.env.CONVEX_OAUTH_CLIENT_ID!;
   const WORKOS_REDIRECT_URI =
     globalThis.process.env.VITE_WORKOS_REDIRECT_URI || globalThis.process.env.VERCEL_BRANCH_URL!;
+
+  const url = new URL(request.url);
+  const getBotsHandoffSecret = process.env.GETBOTS_HANDOFF_SECRET ?? '';
+  const requireGetBotsHandoff =
+    (process.env.GETBOTS_REQUIRE_HANDOFF ?? (getBotsHandoffSecret ? '1' : '0')) === '1';
+  const getBotsAppUrl = DEFAULT_GETBOTS_APP_URL;
+  const getBotsDefaultTeamSlug = process.env.GETBOTS_DEFAULT_TEAM_SLUG || process.env.CHEF_PROVISION_TEAM_SLUG || '';
+
+  let getBotsSession = readGetBotsSessionFromRequest(request, getBotsHandoffSecret);
+  const handoffToken = url.searchParams.get('handoff');
+  if (handoffToken && getBotsHandoffSecret) {
+    const handoffPayload = verifyGetBotsHandoffToken(handoffToken, getBotsHandoffSecret);
+    if (handoffPayload) {
+      const sessionToken = createGetBotsSessionToken({
+        userId: handoffPayload.userId,
+        appId: handoffPayload.appId,
+        appName: handoffPayload.appName,
+        prompt: handoffPayload.prompt,
+        ttlSec: GETBOTS_SESSION_TTL_SEC,
+        secret: getBotsHandoffSecret,
+      });
+      const cleaned = new URL(request.url);
+      cleaned.searchParams.delete('handoff');
+      if (!cleaned.searchParams.get('prefill') && handoffPayload.prompt) {
+        cleaned.searchParams.set('prefill', handoffPayload.prompt);
+      }
+      return redirect(cleaned.toString(), {
+        headers: {
+          'Set-Cookie': createGetBotsSessionCookie(sessionToken, GETBOTS_SESSION_TTL_SEC),
+        },
+      });
+    }
+  }
+
+  if (requireGetBotsHandoff && shouldProtectPath(url.pathname) && !getBotsSession) {
+    const destination = new URL('/login', getBotsAppUrl);
+    destination.searchParams.set('redirect_url', request.url);
+    return redirect(destination.toString(), {
+      headers: {
+        'Set-Cookie': clearGetBotsSessionCookie(),
+      },
+    });
+  }
+
   return json({
-    ENV: { CONVEX_URL, CONVEX_OAUTH_CLIENT_ID, WORKOS_REDIRECT_URI },
+    ENV: {
+      CONVEX_URL,
+      CONVEX_OAUTH_CLIENT_ID,
+      WORKOS_REDIRECT_URI,
+      GETBOTS_EXTERNAL_MODE: getBotsSession ? '1' : '0',
+      GETBOTS_USER_ID: getBotsSession?.payload.userId ?? '',
+      GETBOTS_APP_ID: getBotsSession?.payload.appId ?? '',
+      GETBOTS_APP_NAME: getBotsSession?.payload.appName ?? '',
+      GETBOTS_APP_PROMPT: getBotsSession?.payload.prompt ?? '',
+      GETBOTS_DEFAULT_TEAM_SLUG: getBotsDefaultTeamSlug,
+    },
   });
 }
 

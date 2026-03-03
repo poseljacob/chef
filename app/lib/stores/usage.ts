@@ -7,8 +7,19 @@ import { debugOverrideStore, debugOverrideEnabledStore } from './debug';
 import { queryClientStore } from './reactQueryClient';
 import { QueryObserver } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
+import { isGetBotsStudioExternalMode } from '~/lib/getbots-context';
 
 export function useTokenUsage(teamSlug: string | null): TeamUsageState {
+  if (isGetBotsStudioExternalMode()) {
+    return {
+      isLoading: false,
+      tokenUsage: {
+        centitokensUsed: 0,
+        centitokensQuota: 10_000_000_000,
+        isPaidPlan: true,
+      },
+    };
+  }
   // getConvexAuthToken has a side effect may need
   const convex = useConvex();
   void getConvexAuthToken(convex);

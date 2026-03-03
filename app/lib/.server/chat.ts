@@ -9,6 +9,7 @@ import { disabledText, noTokensText } from '~/lib/convexUsage';
 import type { ModelProvider } from '~/lib/.server/llm/provider';
 import { getEnv } from '~/lib/.server/env';
 import type { PromptCharacterCounts } from 'chef-agent/ChatContextManager';
+import { readGetBotsSessionFromRequest } from '~/lib/getbots-handoff.server';
 
 type Messages = Message[];
 
@@ -21,6 +22,8 @@ export async function chatAction({ request }: ActionFunctionArgs) {
   const AXIOM_API_URL = getEnv('AXIOM_API_URL');
   const AXIOM_DATASET_NAME = getEnv('AXIOM_DATASET_NAME');
   const PROVISION_HOST = getEnv('PROVISION_HOST') || 'https://api.convex.dev';
+  const GETBOTS_APP_URL = getEnv('GETBOTS_APP_URL') || 'https://www.getbots.ai';
+  const GETBOTS_HANDOFF_SECRET = getEnv('GETBOTS_HANDOFF_SECRET') || '';
 
   let tracer: Tracer | null = null;
   if (AXIOM_API_TOKEN && AXIOM_API_URL && AXIOM_DATASET_NAME) {
@@ -56,8 +59,8 @@ export async function chatAction({ request }: ActionFunctionArgs) {
     messages: Messages;
     firstUserMessage: boolean;
     chatInitialId: string;
-    token: string;
-    teamSlug: string;
+    token?: string;
+    teamSlug?: string;
     deploymentName: string | undefined;
     modelProvider: ModelProvider;
     modelChoice: string | undefined;
@@ -72,8 +75,39 @@ export async function chatAction({ request }: ActionFunctionArgs) {
       enableResend?: boolean;
     };
   };
-  const { messages, firstUserMessage, chatInitialId, deploymentName, token, teamSlug, recordRawPromptsForDebugging } =
-    body;
+  const getBotsSession = GETBOTS_HANDOFF_SECRET
+    ? readGetBotsSessionFromRequest(request, GETBOTS_HANDOFF_SECRET)
+    : null;
+  const externalMode = !!getBotsSession;
+  const token = body.token || (externalMode ? getEnv('CHEF_PROVISION_ACCESS_TOKEN') : undefined);
+  const teamSlug = body.teamSlug || (externalMode ? getEnv('CHEF_PROVISION_TEAM_SLUG') : undefined);
+  const { messages, firstUserMessage, chatInitialId, deploymentName, recordRawPromptsForDebugging } = body;
+
+  if (!token || !teamSlug) {
+    return new Response(JSON.stringify({ error: 'Missing provisioning context' }), {
+      status: 400,
+    });
+  }
+
+  if (externalMode && getBotsSession?.token) {
+    const chatUrl = new URL(request.url);
+    const bindEndpoint = new URL('/api/studio/bind', GETBOTS_APP_URL);
+    void fetch(bindEndpoint.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getBotsSession.token}`,
+      },
+      body: JSON.stringify({
+        appId: getBotsSession.payload.appId,
+        chatId: chatInitialId,
+        chatUrl: `${chatUrl.origin}/chat/${chatInitialId}`,
+        status: 'building',
+      }),
+    }).catch((error) => {
+      logger.warn('Failed to sync GetBots studio binding', error);
+    });
+  }
 
   if (getEnv('DISABLE_BEDROCK') === '1' && body.modelProvider === 'Bedrock') {
     body.modelProvider = 'Anthropic';
@@ -95,7 +129,7 @@ export async function chatAction({ request }: ActionFunctionArgs) {
   }
 
   // If they're not set to always mode, check to see if the user has any Convex tokens left.
-  if (body.userApiKey?.preference !== 'always') {
+  if (!externalMode && body.userApiKey?.preference !== 'always') {
     const resp = await checkTokenUsage(PROVISION_HOST, token, teamSlug, deploymentName);
     if (resp.status === 'error') {
       return new Response(JSON.stringify({ error: 'Failed to check for tokens' }), {
@@ -153,7 +187,7 @@ export async function chatAction({ request }: ActionFunctionArgs) {
     lastMessage: Message | undefined,
     finalGeneration: { usage: LanguageModelUsage; providerMetadata?: ProviderMetadata },
   ) => {
-    if (!userApiKey && getEnv('DISABLE_USAGE_REPORTING') !== '1') {
+    if (!externalMode && !userApiKey && getEnv('DISABLE_USAGE_REPORTING') !== '1') {
       await recordUsage(
         PROVISION_HOST,
         token,

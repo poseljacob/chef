@@ -6,10 +6,18 @@ import { toast } from 'sonner';
 import type { ConvexReactClient } from 'convex/react';
 import { useConvex } from 'convex/react';
 import { VITE_PROVISION_HOST } from '~/lib/convexProvisionHost';
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
 
 export function useTeamsInitializer() {
   const convex = useConvex();
   useEffect(() => {
+    const getBots = getGetBotsStudioContext();
+    if (getBots.externalMode) {
+      const teamSlug = getBots.defaultTeamSlug || 'getbots-studio';
+      convexTeamsStore.set([{ slug: teamSlug, name: teamSlug }] as ConvexTeam[]);
+      setSelectedTeamSlug(teamSlug);
+      return;
+    }
     void fetchTeams(convex);
   }, [convex]);
 }

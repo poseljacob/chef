@@ -122,10 +122,23 @@ export async function startProvisionConvexProjectHelper(
   if (session.memberId === undefined) {
     throw new ConvexError({ code: "NotAuthorized", message: "Must be logged in to connect a project" });
   }
-  // OAuth flow
+  const isGetBotsSession = (session as any).externalProvider === "getbots";
   if (args.projectInitParams === undefined) {
-    console.error(`Must provide projectInitParams for oauth: ${args.sessionId}`);
-    throw new ConvexError({ code: "NotAuthorized", message: "Invalid flow for connecting a project" });
+    if (!isGetBotsSession) {
+      console.error(`Must provide projectInitParams for oauth: ${args.sessionId}`);
+      throw new ConvexError({ code: "NotAuthorized", message: "Invalid flow for connecting a project" });
+    }
+
+    await ctx.scheduler.runAfter(0, internal.convexProjects.connectConvexProjectForGetBots, {
+      sessionId: args.sessionId,
+      chatId: args.chatId,
+    });
+    const jobId = await ctx.scheduler.runAfter(CHECK_CONNECTION_DEADLINE_MS, internal.convexProjects.checkConnection, {
+      sessionId: args.sessionId,
+      chatId: args.chatId,
+    });
+    await ctx.db.patch("chats", chat._id, { convexProject: { kind: "connecting", checkConnectionJobId: jobId } });
+    return;
   }
 
   await ctx.scheduler.runAfter(0, internal.convexProjects.connectConvexProjectForOauth, {
@@ -215,6 +228,44 @@ export const connectConvexProjectForOauth = internalAction({
       })
       .catch(async (error) => {
         console.error(`Error connecting convex project: ${error.message}`);
+        const errorMessage = error instanceof ConvexError ? error.data.message : "Unexpected error";
+        await ctx.runMutation(internal.convexProjects.recordFailedConvexProjectConnection, {
+          sessionId: args.sessionId,
+          chatId: args.chatId,
+          errorMessage,
+        });
+      });
+  },
+});
+
+export const connectConvexProjectForGetBots = internalAction({
+  args: {
+    sessionId: v.id("sessions"),
+    chatId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const accessToken = ensureEnvVar("CHEF_PROVISION_ACCESS_TOKEN");
+    const teamSlug = ensureEnvVar("CHEF_PROVISION_TEAM_SLUG");
+    await _connectConvexProjectForMember(ctx, {
+      sessionId: args.sessionId,
+      chatId: args.chatId,
+      accessToken,
+      teamSlug,
+    })
+      .then(async (data) => {
+        await ctx.runMutation(internal.convexProjects.recordProvisionedConvexProjectCredentials, {
+          sessionId: args.sessionId,
+          chatId: args.chatId,
+          projectSlug: data.projectSlug,
+          teamSlug: data.teamSlug,
+          projectDeployKey: data.projectDeployKey,
+          deploymentUrl: data.deploymentUrl,
+          deploymentName: data.deploymentName,
+          warningMessage: data.warningMessage,
+        });
+      })
+      .catch(async (error) => {
+        console.error(`Error connecting convex project for getbots: ${error.message}`);
         const errorMessage = error instanceof ConvexError ? error.data.message : "Unexpected error";
         await ctx.runMutation(internal.convexProjects.recordFailedConvexProjectConnection, {
           sessionId: args.sessionId,

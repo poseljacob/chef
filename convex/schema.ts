@@ -33,6 +33,9 @@ export default defineSchema({
     // When auth-ing with convex.dev, we'll save a `convexMembers` document and
     // reference it here.
     memberId: v.optional(v.id("convexMembers")),
+    externalProvider: v.optional(v.string()),
+    externalUserId: v.optional(v.string()),
+    externalAppId: v.optional(v.string()),
   }).index("byMemberId", ["memberId"]),
 
   convexMembers: defineTable({

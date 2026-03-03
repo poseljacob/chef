@@ -47,6 +47,7 @@ import { useReferralCode, useReferralStats } from '~/lib/hooks/useReferralCode';
 import { useUsage } from '~/lib/stores/usage';
 import { hasAnyApiKeySet, hasApiKeySet } from '~/lib/common/apiKey';
 import { chatSyncState } from '~/lib/stores/startup/chatSyncState';
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
 
 const logger = createScopedLogger('Chat');
 
@@ -103,6 +104,9 @@ export const Chat = memo(
     subchats,
   }: ChatProps) => {
     const convex = useConvex();
+    const getBots = getGetBotsStudioContext();
+    const externalMode = getBots.externalMode;
+    const defaultTeamSlug = getBots.defaultTeamSlug || 'getbots-studio';
     const sessionId = useConvexSessionIdOrNullOrLoading();
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0 || (!!subchats && subchats.length > 1));
     const actionAlert = useStore(workbenchStore.alert);
@@ -240,6 +244,10 @@ export const Chat = memo(
       Math.random() < useAnthropicFraction ? ['Anthropic', 'Bedrock'] : ['Bedrock', 'Anthropic'];
 
     const checkTokenUsage = useCallback(async () => {
+      if (externalMode) {
+        setDisableChatMessage(null);
+        return;
+      }
       if (hasApiKeySet(modelSelection, useGeminiAuto, apiKey)) {
         setDisableChatMessage(null);
         return;
@@ -276,7 +284,7 @@ export const Chat = memo(
       } catch (error) {
         captureException(error);
       }
-    }, [apiKey, convex, modelSelection, setDisableChatMessage, useGeminiAuto]);
+    }, [apiKey, convex, modelSelection, setDisableChatMessage, useGeminiAuto, externalMode]);
 
     const { messages, status, stop, append, setMessages, reload, error } = useChat({
       initialMessages,
@@ -285,8 +293,8 @@ export const Chat = memo(
       experimental_prepareRequestBody: ({ messages }) => {
         const chatInitialId = initialIdStore.get();
         const deploymentName = convexProjectStore.get()?.deploymentName;
-        const teamSlug = selectedTeamSlugStore.get();
-        const token = getConvexAuthToken(convex);
+        const teamSlug = selectedTeamSlugStore.get() ?? (externalMode ? defaultTeamSlug : null);
+        const token = getConvexAuthToken(convex) ?? (externalMode ? 'external' : null);
         if (!token) {
           throw new Error('No token');
         }

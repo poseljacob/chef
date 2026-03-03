@@ -114,6 +114,48 @@ export const startSession = mutation({
   },
 });
 
+export const startGetBotsSession = mutation({
+  args: {
+    userId: v.string(),
+    appId: v.string(),
+  },
+  returns: v.id("sessions"),
+  handler: async (ctx, args) => {
+    const convexMemberId = `getbots:${args.userId}`;
+    const existingMember = await ctx.db
+      .query("convexMembers")
+      .withIndex("byConvexMemberId", (q) => q.eq("convexMemberId", convexMemberId))
+      .first();
+
+    const memberId =
+      existingMember?._id ??
+      (await ctx.db.insert("convexMembers", {
+        tokenIdentifier: convexMemberId,
+        convexMemberId,
+      }));
+
+    const existingSession = await ctx.db
+      .query("sessions")
+      .withIndex("byMemberId", (q) => q.eq("memberId", memberId))
+      .unique();
+    if (existingSession) {
+      await ctx.db.patch(existingSession._id, {
+        externalProvider: "getbots",
+        externalUserId: args.userId,
+        externalAppId: args.appId,
+      });
+      return existingSession._id;
+    }
+
+    return await ctx.db.insert("sessions", {
+      memberId,
+      externalProvider: "getbots",
+      externalUserId: args.userId,
+      externalAppId: args.appId,
+    });
+  },
+});
+
 async function getOrCreateCurrentMember(ctx: MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {

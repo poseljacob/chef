@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { fetchOptIns } from '~/lib/convexOptins';
 import { setChefDebugProperty } from 'chef-agent/utils/chefDebug';
 import { useAuth } from '@workos-inc/authkit-react';
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
 type ChefAuthState =
   | {
       kind: 'loading';
@@ -57,6 +58,7 @@ export const ChefAuthProvider = ({
   const sessionId = useConvexSessionIdOrNullOrLoading();
   const convex = useConvex();
   const { isAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
+  const getBots = getGetBotsStudioContext();
   const [sessionIdFromLocalStorage, setSessionIdFromLocalStorage] = useLocalStorage<Id<'sessions'> | null>(
     SESSION_ID_KEY,
     null,
@@ -75,6 +77,33 @@ export const ChefAuthProvider = ({
     }
 
     const isUnauthenticated = !isAuthenticated && !isConvexAuthLoading;
+
+    if (getBots.externalMode) {
+      async function initGetBotsSession() {
+        const getBotsUserId = getBots.userId;
+        const getBotsAppId = getBots.appId;
+        if (!getBotsUserId || !getBotsAppId) {
+          setSessionId(null);
+          return;
+        }
+        if (sessionIdFromLocalStorage) {
+          setSessionId(sessionIdFromLocalStorage as Id<'sessions'>);
+          return;
+        }
+        try {
+          const newSessionId = await convex.mutation(api.sessions.startGetBotsSession, {
+            userId: getBotsUserId,
+            appId: getBotsAppId,
+          });
+          setSessionId(newSessionId);
+        } catch (error) {
+          console.error('Error creating getbots session', error);
+          setSessionId(null);
+        }
+      }
+      void initGetBotsSession();
+      return undefined;
+    }
 
     if (sessionId === undefined && isUnauthenticated) {
       setSessionId(null);
@@ -163,15 +192,20 @@ export const ChefAuthProvider = ({
     sessionIdFromLocalStorage,
     setSessionIdFromLocalStorage,
     getAccessToken,
+    getBots.externalMode,
+    getBots.userId,
+    getBots.appId,
   ]);
 
-  const isLoading = sessionId === undefined || isConvexAuthLoading;
-  const isUnauthenticated = sessionId === null || !isAuthenticated;
-  const state: ChefAuthState = isLoading
-    ? { kind: 'loading' }
-    : isUnauthenticated
-      ? { kind: 'unauthenticated' }
-      : { kind: 'fullyLoggedIn', sessionId: sessionId as Id<'sessions'> };
+  const state: ChefAuthState = getBots.externalMode
+    ? sessionId
+      ? { kind: 'fullyLoggedIn', sessionId: sessionId as Id<'sessions'> }
+      : { kind: 'loading' }
+    : sessionId === undefined || isConvexAuthLoading
+      ? { kind: 'loading' }
+      : sessionId === null || !isAuthenticated
+        ? { kind: 'unauthenticated' }
+        : { kind: 'fullyLoggedIn', sessionId: sessionId as Id<'sessions'> };
 
   if (redirectIfUnauthenticated && state.kind === 'unauthenticated') {
     console.log('redirecting to /');

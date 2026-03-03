@@ -38,6 +38,7 @@ import { PencilSquareIcon } from '@heroicons/react/24/outline';
 import { ChatBubbleLeftIcon, DocumentArrowUpIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@workos-inc/authkit-react';
 import { useConvex } from 'convex/react';
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
 
 const PROMPT_LENGTH_WARNING_THRESHOLD = 2000;
 
@@ -114,6 +115,7 @@ export const MessageInput = memo(function MessageInput({
   const [isEnhancing, setIsEnhancing] = useState(false);
   const sessionId = useConvexSessionIdOrNullOrLoading();
   const chefAuthState = useChefAuth();
+  const externalMode = getGetBotsStudioContext().externalMode;
   const selectedTeamSlug = useSelectedTeamSlug();
   const convex = useConvex();
 
@@ -280,7 +282,7 @@ export const MessageInput = memo(function MessageInput({
           {chefAuthState.kind === 'fullyLoggedIn' && (
             <ModelSelector modelSelection={modelSelection} setModelSelection={setModelSelection} size="sm" />
           )}
-          {!chatStarted && sessionId && (
+          {!chatStarted && sessionId && !externalMode && (
             <TeamSelector
               description="Your project will be created in this Convex team"
               selectedTeamSlug={selectedTeamSlug}
