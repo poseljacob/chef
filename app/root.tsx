@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react';
 import type { LinksFunction } from '@vercel/remix';
 import { json, redirect } from '@vercel/remix';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData, useRouteError } from '@remix-run/react';
+import { createHash } from 'node:crypto';
 import { themeStore } from './lib/stores/theme';
 import { stripIndents } from 'chef-agent/utils/stripIndent';
 import { createHead } from 'remix-island';
@@ -83,6 +84,11 @@ export async function loader({ request }: { request: Request }) {
           },
         });
       }
+      const tokenSig = handoffToken.split('.')[1] ?? '';
+      console.log('[getbots-handoff] invalid token', {
+        secretHashPrefix: createHash('sha256').update(getBotsHandoffSecret).digest('hex').slice(0, 12),
+        tokenSigPrefix: tokenSig.slice(0, 12),
+      });
       handoffState = 'invalid';
     }
   }
