@@ -66,6 +66,32 @@ function parseSignedToken(token: string, secret: string): GetBotsHandoffPayload 
   }
 }
 
+export function debugVerifyGetBotsHandoffToken(
+  token: string,
+  secret: string,
+): { ok: boolean; reason: string; sigMatches?: boolean; version?: number; expiresAt?: number; now?: number } {
+  const [encoded, sig] = token.split('.');
+  if (!encoded || !sig) return { ok: false, reason: 'format' };
+  const expected = sign(encoded, secret);
+  const sigMatches = timingSafeEqualHex(sig, expected);
+  if (!sigMatches) return { ok: false, reason: 'signature', sigMatches };
+
+  let payload: GetBotsHandoffPayload;
+  try {
+    payload = JSON.parse(fromBase64Url(encoded)) as GetBotsHandoffPayload;
+  } catch {
+    return { ok: false, reason: 'payload-json', sigMatches };
+  }
+  if (payload.v !== HANDOFF_VERSION) {
+    return { ok: false, reason: 'version', sigMatches, version: payload.v };
+  }
+  const now = Date.now();
+  if (!payload.expiresAt || now > payload.expiresAt) {
+    return { ok: false, reason: 'expired', sigMatches, expiresAt: payload.expiresAt, now };
+  }
+  return { ok: true, reason: 'ok', sigMatches, version: payload.v, expiresAt: payload.expiresAt, now };
+}
+
 export function verifyGetBotsHandoffToken(token: string, secret: string): GetBotsHandoffPayload | null {
   return parseSignedToken(token, secret);
 }
@@ -117,4 +143,3 @@ export function readGetBotsSessionFromRequest(
   if (!payload) return null;
   return { token, payload };
 }
-

@@ -24,6 +24,7 @@ import 'allotment/dist/style.css';
 import { ErrorDisplay } from './components/ErrorComponent';
 import useVersionNotificationBanner from './components/VersionNotificationBanner';
 import {
+  debugVerifyGetBotsHandoffToken,
   clearGetBotsSessionCookie,
   createGetBotsSessionCookie,
   createGetBotsSessionToken,
@@ -85,7 +86,13 @@ export async function loader({ request }: { request: Request }) {
         });
       }
       const tokenSig = handoffToken.split('.')[1] ?? '';
+      const debug = debugVerifyGetBotsHandoffToken(handoffToken, getBotsHandoffSecret);
       console.log('[getbots-handoff] invalid token', {
+        reason: debug.reason,
+        sigMatches: debug.sigMatches,
+        version: debug.version,
+        expiresAt: debug.expiresAt,
+        now: debug.now,
         secretHashPrefix: createHash('sha256').update(getBotsHandoffSecret).digest('hex').slice(0, 12),
         tokenSigPrefix: tokenSig.slice(0, 12),
       });
