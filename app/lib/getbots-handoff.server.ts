@@ -15,11 +15,18 @@ export type GetBotsHandoffPayload = {
 };
 
 function toBase64Url(input: string): string {
-  return Buffer.from(input, 'utf8').toString('base64url');
+  return Buffer.from(input, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
 }
 
 function fromBase64Url(input: string): string {
-  return Buffer.from(input, 'base64url').toString('utf8');
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padLength = normalized.length % 4 === 0 ? 0 : 4 - (normalized.length % 4);
+  const padded = normalized + '='.repeat(padLength);
+  return Buffer.from(padded, 'base64').toString('utf8');
 }
 
 function sign(encodedPayload: string, secret: string): string {
