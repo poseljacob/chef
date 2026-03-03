@@ -310,33 +310,43 @@ async function _connectConvexProjectForMember(
     projectsRemaining: number;
   } = await response.json();
 
-  const projectDeployKeyResponse = await fetch(`${bigBrainHost}/api/dashboard/authorize`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${args.accessToken}`,
-    },
-    body: JSON.stringify({
-      authn_token: args.accessToken,
-      projectId: data.projectId,
-      oauthApp: {
-        clientId: ensureEnvVar("CONVEX_OAUTH_CLIENT_ID"),
-        clientSecret: ensureEnvVar("CONVEX_OAUTH_CLIENT_SECRET"),
+  const oauthClientId = process.env.CONVEX_OAUTH_CLIENT_ID;
+  const oauthClientSecret = process.env.CONVEX_OAUTH_CLIENT_SECRET;
+
+  // Fallback to adminKey when OAuth app credentials are not configured.
+  // This keeps hosted forks functional without requiring Convex OAuth app setup.
+  let projectDeployKey = data.adminKey;
+  if (oauthClientId && oauthClientSecret) {
+    const projectDeployKeyResponse = await fetch(`${bigBrainHost}/api/dashboard/authorize`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${args.accessToken}`,
       },
-    }),
-  });
-  if (!projectDeployKeyResponse.ok) {
-    const text = await projectDeployKeyResponse.text();
-    throw new ConvexError({
-      code: "ProvisioningError",
-      message: text.includes("SSORequired")
-        ? "You must log in with Single Sign-on to access this team."
-        : `Failed to create project deploy key: ${projectDeployKeyResponse.status}`,
-      details: text,
+      body: JSON.stringify({
+        authn_token: args.accessToken,
+        projectId: data.projectId,
+        oauthApp: {
+          clientId: oauthClientId,
+          clientSecret: oauthClientSecret,
+        },
+      }),
     });
+    if (!projectDeployKeyResponse.ok) {
+      const text = await projectDeployKeyResponse.text();
+      throw new ConvexError({
+        code: "ProvisioningError",
+        message: text.includes("SSORequired")
+          ? "You must log in with Single Sign-on to access this team."
+          : `Failed to create project deploy key: ${projectDeployKeyResponse.status}`,
+        details: text,
+      });
+    }
+    const projectDeployKeyData: { accessToken: string } = await projectDeployKeyResponse.json();
+    projectDeployKey = `project:${args.teamSlug}:${data.projectSlug}|${projectDeployKeyData.accessToken}`;
+  } else if (oauthClientId || oauthClientSecret) {
+    console.warn("Only one of CONVEX_OAUTH_CLIENT_ID or CONVEX_OAUTH_CLIENT_SECRET is set; falling back to adminKey.");
   }
-  const projectDeployKeyData: { accessToken: string } = await projectDeployKeyResponse.json();
-  const projectDeployKey = `project:${args.teamSlug}:${data.projectSlug}|${projectDeployKeyData.accessToken}`;
   const warningMessage =
     data.projectsRemaining <= 2 ? `You have ${data.projectsRemaining} projects remaining on this team.` : undefined;
 
