@@ -4,16 +4,25 @@ import { toast } from 'sonner';
 import { useFileUpdateCounter } from '~/lib/stores/fileUpdateCounter';
 import { chatSyncState } from '~/lib/stores/startup/chatSyncState';
 
-type ToastState = { type: 'idle'; lastCompleted: number } | { type: 'loading'; toastId: string };
+type ToastState =
+  | { type: 'idle'; lastCompleted: number }
+  | { type: 'loading'; toastId: string; startedAt: number };
 
 const TOAST_DURATION = 1000;
 const TOAST_COOLDOWN = 5000;
+const MAX_LOADING_TOAST_MS = 45_000;
 
 export function BackupStatusIndicator() {
   const toastState = useRef<ToastState>({ type: 'idle', lastCompleted: 0 });
   const backupState = useStore(chatSyncState);
   const fileCounter = useFileUpdateCounter();
   useEffect(() => {
+    if (toastState.current.type === 'loading') {
+      if (backupState.numFailures >= 3 || Date.now() - toastState.current.startedAt > MAX_LOADING_TOAST_MS) {
+        toast.dismiss(toastState.current.toastId);
+        toastState.current = { type: 'idle', lastCompleted: Date.now() };
+      }
+    }
     if (backupState.savedFileUpdateCounter === null) {
       return;
     }
@@ -38,7 +47,7 @@ export function BackupStatusIndicator() {
             toast.loading('Saving...', {
               id: toastId,
             });
-            toastState.current = { type: 'loading', toastId };
+            toastState.current = { type: 'loading', toastId, startedAt: now };
           }
         }
       }

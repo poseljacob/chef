@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 const logger = createScopedLogger('history');
 
 const BACKUP_DEBOUNCE_MS = 1000;
+const BACKUP_REQUEST_TIMEOUT_MS = 30_000;
 
 export function useBackupSyncState(chatId: string, loadedSubchatIndex?: number, initialMessages?: Message[]) {
   const convex = useConvex();
@@ -240,10 +241,19 @@ async function chatSyncWorker(args: {
       continue;
     }
     try {
-      response = await fetch(url, {
-        method: 'POST',
-        body: formData,
-      });
+      const abortController = new AbortController();
+      const timeout = setTimeout(() => {
+        abortController.abort();
+      }, BACKUP_REQUEST_TIMEOUT_MS);
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          body: formData,
+          signal: abortController.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
     } catch (e) {
       error = e as Error;
     }
