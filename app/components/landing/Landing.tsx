@@ -1,4 +1,42 @@
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
+
 export default function Landing() {
+  const isGetBotsExternal = getGetBotsStudioContext().externalMode;
+
+  if (isGetBotsExternal) {
+    return (
+      <div className="my-12 flex max-w-chat flex-col">
+        <div className="overflow-hidden rounded-lg border border-neutral-2 dark:border-neutral-10">
+          <div className="flex items-center border-b border-neutral-2 bg-neutral-1/20 px-4 py-2 dark:border-neutral-10 dark:bg-neutral-11">
+            <span className="text-sm font-semibold text-neutral-9 dark:text-neutral-2">WORKSPACE NOTES</span>
+          </div>
+          <div className="flex flex-col gap-6 px-4 py-6 text-lg text-neutral-9 dark:text-neutral-2">
+            <p>
+              This Studio workspace is connected to your GetBots account. Generated app work is scoped to your
+              current App Builder workspace.
+            </p>
+            <p>
+              Your first run creates a linked bot in GetBots so you can manage deployment and operations from the main
+              app.
+            </p>
+            <p>
+              Keep your prompts explicit about workflows, schema, auth rules, and deploy expectations. After each run,
+              you can return to GetBots and continue from the linked bot.
+            </p>
+            <div className="flex justify-center">
+              <a
+                href="https://www.getbots.ai/app-builder"
+                className="inline-flex items-center gap-2 rounded-lg border border-neutral-3 bg-neutral-1/50 px-3 py-2 text-lg text-neutral-12 transition-all hover:bg-neutral-1 dark:border-neutral-700 dark:bg-neutral-11 dark:text-neutral-2 dark:hover:bg-neutral-10"
+              >
+                Open App Builder
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="my-12 flex max-w-chat flex-col">
       <div className="overflow-hidden rounded-lg border border-neutral-2 dark:border-neutral-10">

@@ -19,6 +19,7 @@ import type { ModelSelection } from '~/utils/constants';
 import { useLaunchDarkly } from '~/lib/hooks/useLaunchDarkly';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
 
 type StreamStatus = 'streaming' | 'submitted' | 'ready' | 'error';
 
@@ -62,10 +63,19 @@ const COOKING_SPLINES_MESSAGES = [
   'Adding a splash of flavor...',
   'Julienning carrots...',
 ];
+const BUILDING_SPLINES_MESSAGES = [
+  'Preparing project plan...',
+  'Designing data model...',
+  'Wiring backend actions...',
+  'Generating UI screens...',
+  'Applying auth rules...',
+  'Assembling deployment config...',
+];
 const COOKING_SPLINES_PROBABILITY = 0.2;
 const COOKING_SPLINES_DURATION = 4000;
 
 export default function StreamingIndicator(props: StreamingIndicatorProps) {
+  const externalMode = getGetBotsStudioContext().externalMode;
   const { aborted } = useStore(chatStore);
   const teamSlug = useSelectedTeamSlug();
 
@@ -83,8 +93,9 @@ export default function StreamingIndicator(props: StreamingIndicatorProps) {
       timer = setInterval(() => {
         let newMessage = null;
         if (Math.random() < COOKING_SPLINES_PROBABILITY) {
-          const randomIndex = Math.floor(Math.random() * COOKING_SPLINES_MESSAGES.length);
-          newMessage = COOKING_SPLINES_MESSAGES[randomIndex];
+          const options = externalMode ? BUILDING_SPLINES_MESSAGES : COOKING_SPLINES_MESSAGES;
+          const randomIndex = Math.floor(Math.random() * options.length);
+          newMessage = options[randomIndex];
         }
         setCookingMessage(newMessage);
       }, COOKING_SPLINES_DURATION);
@@ -113,7 +124,7 @@ export default function StreamingIndicator(props: StreamingIndicatorProps) {
       case 'submitted':
       case 'streaming':
         icon = <LoadingIcon />;
-        message = cookingMessage || STATUS_MESSAGES.cooking;
+        message = cookingMessage || (externalMode ? 'Building...' : STATUS_MESSAGES.cooking);
         break;
       case 'error':
         icon = <WarningIcon />;

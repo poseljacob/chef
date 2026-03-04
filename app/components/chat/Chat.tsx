@@ -203,6 +203,7 @@ export const Chat = memo(
         } = {
           auto: { providerName: 'anthropic', apiKeyField: 'value' },
           'claude-4-sonnet': { providerName: 'anthropic', apiKeyField: 'value' },
+          'claude-4.6-sonnet': { providerName: 'anthropic', apiKeyField: 'value' },
           'claude-4.5-sonnet': { providerName: 'anthropic', apiKeyField: 'value' },
           'gpt-4.1': { providerName: 'openai', apiKeyField: 'openai' },
           'gpt-5': { providerName: 'openai', apiKeyField: 'openai' },
@@ -307,7 +308,7 @@ export const Chat = memo(
         if (modelSelection === 'auto') {
           const providers: ProviderType[] = anthropicProviders;
           modelProvider = providers[retries.numFailures % providers.length];
-          modelChoice = 'claude-sonnet-4-0';
+          modelChoice = 'claude-sonnet-4-6';
         } else if (modelSelection === 'claude-3-5-haiku') {
           modelProvider = 'Anthropic';
           modelChoice = 'claude-3-5-haiku-latest';
@@ -315,6 +316,9 @@ export const Chat = memo(
           const providers: ProviderType[] = anthropicProviders;
           modelProvider = providers[retries.numFailures % providers.length];
           modelChoice = 'claude-sonnet-4-0';
+        } else if (modelSelection === 'claude-4.6-sonnet') {
+          modelProvider = 'Anthropic';
+          modelChoice = 'claude-sonnet-4-6';
         } else if (modelSelection === 'claude-4.5-sonnet') {
           modelProvider = 'Anthropic';
           modelChoice = 'claude-sonnet-4-5';
@@ -486,13 +490,15 @@ export const Chat = memo(
         (retries.numFailures >= MAX_RETRIES || now < retries.nextRetry) &&
         !hasApiKeySet(modelSelection, useGeminiAuto, apiKey)
       ) {
-        let message: string | ReactNode = 'Chef is too busy cooking right now. ';
+        let message: string | ReactNode = getBots.externalMode
+          ? 'GetBots Studio is busy right now. '
+          : 'Chef is too busy cooking right now. ';
         if (retries.numFailures >= MAX_RETRIES) {
           message = (
             <>
               {message}
               Please{' '}
-              <a href="https://chef.convex.dev/settings" className="text-content-link hover:underline">
+              <a href="/settings" className="text-content-link hover:underline">
                 enter your own API key
               </a>
               .
@@ -504,7 +510,7 @@ export const Chat = memo(
             <>
               {message}
               Please try again in {remaining} or{' '}
-              <a href="https://chef.convex.dev/settings" className="text-content-link hover:underline">
+              <a href="/settings" className="text-content-link hover:underline">
                 enter your own API key
               </a>
               .
@@ -725,6 +731,7 @@ function getConvexAuthToken(convex: ConvexReactClient): string | null {
 }
 
 export function NoTokensText({ resetDisableChatMessage }: { resetDisableChatMessage: () => void }) {
+  const externalMode = getGetBotsStudioContext().externalMode;
   const selectedTeamSlug = useSelectedTeamSlug();
   const referralCode = useReferralCode();
   const referralStats = useReferralStats();
@@ -736,30 +743,38 @@ export function NoTokensText({ resetDisableChatMessage }: { resetDisableChatMess
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <h4>You&apos;ve used all the tokens included with your free plan.</h4>
+      <h4>
+        {externalMode
+          ? "You've reached the current Studio usage limit for this workspace."
+          : "You've used all the tokens included with your free plan."}
+      </h4>
       <div className="flex flex-wrap items-center gap-2">
-        <TeamSelector
-          selectedTeamSlug={selectedTeamSlug}
-          setSelectedTeamSlug={(slug) => {
-            setSelectedTeamSlug(slug);
-            resetDisableChatMessage();
-          }}
-        />
+        {!externalMode && (
+          <TeamSelector
+            selectedTeamSlug={selectedTeamSlug}
+            setSelectedTeamSlug={(slug) => {
+              setSelectedTeamSlug(slug);
+              resetDisableChatMessage();
+            }}
+          />
+        )}
         <Button href="/settings" icon={<KeyIcon className="size-4" />} variant="neutral">
           Add your own API key
         </Button>
-        <Button
-          href={
-            selectedTeamSlug
-              ? `https://dashboard.convex.dev/t/${selectedTeamSlug}/settings/billing?source=chef`
-              : 'https://dashboard.convex.dev/team/settings/billing?source=chef'
-          }
-          className="w-fit"
-          icon={<ExternalLinkIcon />}
-        >
-          Upgrade to a paid plan
-        </Button>
-        {referralCode && referralStats?.left !== 0 && (
+        {!externalMode && (
+          <Button
+            href={
+              selectedTeamSlug
+                ? `https://dashboard.convex.dev/t/${selectedTeamSlug}/settings/billing?source=chef`
+                : 'https://dashboard.convex.dev/team/settings/billing?source=chef'
+            }
+            className="w-fit"
+            icon={<ExternalLinkIcon />}
+          >
+            Upgrade to a paid plan
+          </Button>
+        )}
+        {!externalMode && referralCode && referralStats?.left !== 0 && (
           <div className="w-full space-y-2">
             <p className="text-sm text-content-secondary">
               Refer a friend and Get 85,000 free Chef tokens for each
@@ -794,34 +809,41 @@ export function DisabledText({
   isPaidPlan: boolean;
   resetDisableChatMessage: () => void;
 }) {
+  const externalMode = getGetBotsStudioContext().externalMode;
   const selectedTeamSlug = useSelectedTeamSlug();
   return (
     <div className="flex w-full flex-col gap-4">
       <h3>
-        {isPaidPlan
-          ? "You've exceeded your spending limits, so your deployments have been disabled."
-          : "You've exceeded the free plan limits, so your deployments have been disabled."}
+        {externalMode
+          ? 'This workspace is temporarily rate-limited. Please wait and try again.'
+          : isPaidPlan
+            ? "You've exceeded your spending limits, so your deployments have been disabled."
+            : "You've exceeded the free plan limits, so your deployments have been disabled."}
       </h3>
       <div className="flex flex-wrap items-center gap-2">
-        <TeamSelector
-          selectedTeamSlug={selectedTeamSlug}
-          setSelectedTeamSlug={(slug) => {
-            setSelectedTeamSlug(slug);
-            resetDisableChatMessage();
-          }}
-        />
-        <Button
-          href={
-            selectedTeamSlug
-              ? `https://dashboard.convex.dev/t/${selectedTeamSlug}/settings/billing?source=chef`
-              : 'https://dashboard.convex.dev/team/settings/billing?source=chef'
-          }
-          className="w-fit"
-          icon={<ExternalLinkIcon />}
-        >
-          {isPaidPlan ? 'Increase spending limit' : 'Upgrade your plan'}
-        </Button>
-        {isPaidPlan && <span>or wait until limits reset</span>}
+        {!externalMode && (
+          <>
+            <TeamSelector
+              selectedTeamSlug={selectedTeamSlug}
+              setSelectedTeamSlug={(slug) => {
+                setSelectedTeamSlug(slug);
+                resetDisableChatMessage();
+              }}
+            />
+            <Button
+              href={
+                selectedTeamSlug
+                  ? `https://dashboard.convex.dev/t/${selectedTeamSlug}/settings/billing?source=chef`
+                  : 'https://dashboard.convex.dev/team/settings/billing?source=chef'
+              }
+              className="w-fit"
+              icon={<ExternalLinkIcon />}
+            >
+              {isPaidPlan ? 'Increase spending limit' : 'Upgrade your plan'}
+            </Button>
+            {isPaidPlan && <span>or wait until limits reset</span>}
+          </>
+        )}
       </div>
     </div>
   );

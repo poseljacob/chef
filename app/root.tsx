@@ -29,6 +29,7 @@ import {
   readGetBotsSessionFromRequest,
   verifyGetBotsHandoffToken,
 } from './lib/getbots-handoff.server';
+import { bindGetBotsWorkspace } from './lib/getbots-bind.server';
 
 const GETBOTS_SESSION_TTL_SEC = Number(globalThis.process.env.GETBOTS_SESSION_TTL_SEC ?? 60 * 60 * 24 * 30);
 const DEFAULT_GETBOTS_APP_URL = globalThis.process.env.GETBOTS_APP_URL || 'https://www.getbots.ai';
@@ -59,6 +60,11 @@ export async function loader({ request }: { request: Request }) {
     if (getBotsHandoffSecret) {
       const handoffPayload = verifyGetBotsHandoffToken(handoffToken, getBotsHandoffSecret);
       if (handoffPayload) {
+        await bindGetBotsWorkspace({
+          token: handoffToken,
+          appId: handoffPayload.appId,
+          status: 'building',
+        });
         const sessionToken = createGetBotsSessionToken({
           userId: handoffPayload.userId,
           appId: handoffPayload.appId,
@@ -156,6 +162,7 @@ export const Head = createHead(() => (
 export function Layout({ children }: { children: React.ReactNode }) {
   const theme = useStore(themeStore);
   const loaderData = useRouteLoaderData<typeof loader>('root');
+  const isGetBotsExternal = (loaderData as any)?.ENV?.GETBOTS_EXTERNAL_MODE === '1';
   const CONVEX_URL = import.meta.env.VITE_CONVEX_URL || (loaderData as any)?.ENV.CONVEX_URL;
   if (!CONVEX_URL) {
     throw new Error(`Missing CONVEX_URL: ${CONVEX_URL}`);
@@ -174,10 +181,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ),
   );
 
-  // TODO does it still make sense?
   useEffect(() => {
-    document.querySelector('html')?.setAttribute('class', theme);
-  }, [theme]);
+    const html = document.documentElement;
+    if (isGetBotsExternal) {
+      if (themeStore.get() !== 'light') {
+        themeStore.set('light');
+      }
+      localStorage.setItem('bolt_theme', 'light');
+      html.setAttribute('class', 'light');
+      html.setAttribute('data-getbots-external', '1');
+      return;
+    }
+    html.removeAttribute('data-getbots-external');
+    html.setAttribute('class', theme);
+  }, [isGetBotsExternal, theme]);
 
   // Initialize PostHog.
   useEffect(() => {

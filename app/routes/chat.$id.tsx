@@ -4,14 +4,26 @@ import { ClientOnly } from 'remix-utils/client-only';
 import { Header } from '~/components/header/Header';
 import { ExistingChat } from '~/components/ExistingChat.client';
 import { redirect, useLoaderData } from '@remix-run/react';
+import { readGetBotsSessionFromRequest } from '~/lib/getbots-handoff.server';
+import { bindGetBotsWorkspace } from '~/lib/getbots-bind.server';
 
 export const meta: MetaFunction = () => {
-  return [{ title: 'Chef' }];
+  return [{ title: 'GetBots Studio' }];
 };
 
 export async function loader(args: LoaderFunctionArgs) {
   const url = new URL(args.request.url);
   const code = url.searchParams.get('code');
+  const getBotsHandoffSecret = globalThis.process.env.GETBOTS_HANDOFF_SECRET ?? '';
+  const getBotsSession = readGetBotsSessionFromRequest(args.request, getBotsHandoffSecret);
+  if (getBotsSession) {
+    await bindGetBotsWorkspace({
+      token: getBotsSession.token,
+      appId: getBotsSession.payload.appId,
+      chatUrl: url.toString(),
+      status: 'building',
+    });
+  }
   return json({ id: args.params.id, code });
 }
 

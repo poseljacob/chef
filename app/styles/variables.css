@@ -75,6 +75,18 @@ html.light {
   --cvx-border-selected: rgb(30, 28, 25);
 }
 
+html[data-getbots-external='1'] {
+  --cvx-background-brand: rgb(241, 245, 252);
+  --cvx-background-primary: rgb(246, 248, 252);
+  --cvx-background-secondary: rgb(255, 255, 255);
+  --cvx-background-tertiary: rgb(237, 242, 249);
+  --cvx-content-accent: rgb(37, 99, 235);
+  --cvx-content-link: rgb(29, 78, 216);
+  --cvx-border-transparent: rgba(16, 42, 67, 0.12);
+  --cvx-border-selected: rgb(37, 99, 235);
+  --cvx-accent: rgb(37, 99, 235);
+}
+
 /* Convex Tokens Dark Theme (from Dashboard) */
 :root,
 html.dark {

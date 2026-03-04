@@ -28,6 +28,7 @@ import { SubchatLimitNudge } from './SubchatLimitNudge';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { subchatIndexStore, useIsSubchatLoaded } from '~/lib/stores/subchats';
+import { getGetBotsStudioContext } from '~/lib/getbots-context';
 
 interface BaseChatProps {
   // Refs
@@ -95,6 +96,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     ref,
   ) => {
     const { maintenanceMode } = useLaunchDarkly();
+    const getBots = getGetBotsStudioContext();
+    const isGetBotsExternal = getBots.externalMode;
 
     const isStreaming = streamStatus === 'streaming' || streamStatus === 'submitted';
     const recommendedExperience = chooseExperience(navigator.userAgent, window.crossOriginIsolated);
@@ -155,10 +158,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               {!chatStarted && (
                 <div id="intro" className="mx-auto mb-8 mt-12 max-w-chat px-4 text-center md:mt-16 lg:px-0">
                   <h1 className="mb-2 animate-fadeInFromLoading font-display text-4xl font-black leading-none tracking-tight text-content-primary md:text-5xl lg:mb-4 lg:text-6xl">
-                    Now you&rsquo;re cooking
+                    {isGetBotsExternal ? 'Build with GetBots Studio' : 'Now you&rsquo;re cooking'}
                   </h1>
                   <p className="animate-fadeInFromLoading text-balance font-display text-lg font-medium text-content-secondary [animation-delay:200ms] [animation-fill-mode:backwards] md:text-xl">
-                    The open-source app generator powered by Convex
+                    {isGetBotsExternal
+                      ? 'Generate full-stack apps and sync them to your GetBots workspace'
+                      : 'The open-source app generator powered by Convex'}
                   </p>
                 </div>
               )}
@@ -296,7 +301,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               {maintenanceMode && (
                 <div className="mx-auto my-4 max-w-chat">
                   <div className="relative rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-600 dark:bg-red-900 dark:text-red-200">
-                    <p className="font-bold">Chef is temporarily unavailable</p>
+                    <p className="font-bold">
+                      {isGetBotsExternal ? 'GetBots Studio is temporarily unavailable' : 'Chef is temporarily unavailable'}
+                    </p>
                     <p className="text-sm">
                       We&apos;re experiencing high load and will be back soon. Thank you for your patience.
                     </p>

@@ -268,7 +268,9 @@ export const MessageInput = memo(function MessageInput({
                 ? numMessages !== undefined && numMessages > 0
                   ? 'Request changes by sending another message…'
                   : 'Send a prompt for a new feature…'
-                : 'What app do you want to serve?'
+                : externalMode
+                  ? 'What do you want to build?'
+                  : 'What app do you want to serve?'
             }
             disabled={disabled}
             highlights={HIGHLIGHTS}
@@ -311,7 +313,14 @@ export const MessageInput = memo(function MessageInput({
               >
                 <div className="ml-3 flex items-center gap-1">
                   <h2 className="text-sm font-bold">Use a recipe</h2>
-                  <Tooltip tip="Recipes are Chef prompts that add powerful full-stack features to your app." side="top">
+                  <Tooltip
+                    tip={
+                      externalMode
+                        ? 'Recipes are starter prompts that add full-stack features to your app.'
+                        : 'Recipes are Chef prompts that add powerful full-stack features to your app.'
+                    }
+                    side="top"
+                  >
                     <span className="cursor-help text-content-tertiary">
                       <InformationCircleIcon className="size-4" />
                     </span>

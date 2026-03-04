@@ -27,6 +27,11 @@ html.dark {
   color-scheme: dark;
 }
 
+html[data-getbots-external='1'],
+html[data-getbots-external='1'] body {
+  background: linear-gradient(180deg, #eef3f9 0%, #f7f9fc 100%);
+}
+
 @layer utilities {
   .bolt-ease-cubic-bezier {
     @apply ease-[cubic-bezier(0.4,0,0.2,1)];

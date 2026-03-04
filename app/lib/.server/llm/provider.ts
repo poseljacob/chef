@@ -44,7 +44,7 @@ export function modelForProvider(provider: ModelProvider, modelChoice: string | 
   }
   switch (provider) {
     case 'Anthropic':
-      return getEnv('ANTHROPIC_MODEL') || 'claude-3-5-sonnet-20241022';
+      return getEnv('ANTHROPIC_MODEL') || 'claude-sonnet-4-6';
     case 'Bedrock':
       return getEnv('AMAZON_BEDROCK_MODEL') || 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
     case 'OpenAI':

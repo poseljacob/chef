@@ -7,8 +7,8 @@ import { Homepage } from '~/components/Homepage.client';
 
 export const meta: MetaFunction = () => {
   return [
-    { title: 'Chef by Convex | Generate realtime full‑stack apps' },
-    { name: 'description', content: 'Cook up something hot with Chef, the full-stack AI coding agent from Convex' },
+    { title: 'GetBots Studio | Generate realtime full-stack apps' },
+    { name: 'description', content: 'Build and iterate full-stack applications from your GetBots workspace.' },
     {
       property: 'og:image',
       content: '/social_preview_index.png',
@@ -19,7 +19,7 @@ export const meta: MetaFunction = () => {
 export const links: LinksFunction = () => [
   {
     rel: 'canonical',
-    href: 'https://chef.convex.dev/',
+    href: 'https://studio.getbots.ai/',
   },
 ];
 

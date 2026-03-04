@@ -116,11 +116,12 @@ export async function chatAction({ request }: ActionFunctionArgs) {
   let useUserApiKey = false;
 
   // Use the user's API key if they're set to always mode or if they manually set a model.
-  // Sonnet 4 can be used with the default API key since it has the same pricing as Sonnet 3.5
+  // Sonnet 4 and 4.6 can be used with the default API key.
   // GPT-5 can be used with our own API key since it has the same pricing as Gemini 2.5 Pro
   if (
     body.userApiKey?.preference === 'always' ||
     (body.modelChoice &&
+      body.modelChoice !== 'claude-sonnet-4-6' &&
       body.modelChoice !== 'claude-sonnet-4-0' &&
       body.modelChoice !== 'gpt-5' &&
       body.modelChoice !== 'claude-sonnet-4-5')
@@ -209,9 +210,11 @@ export async function chatAction({ request }: ActionFunctionArgs) {
       messages,
       tracer,
       modelProvider: body.modelProvider,
-      // Only set the requested model choice if we're using a user API key or Claude 4 Sonnet/GPT-5
+      // Only set the requested model choice if we're using a user API key or a
+      // built-in allowlisted model.
       modelChoice:
         userApiKey ||
+        body.modelChoice === 'claude-sonnet-4-6' ||
         body.modelChoice === 'claude-sonnet-4-0' ||
         body.modelChoice === 'gpt-5' ||
         body.modelChoice === 'claude-sonnet-4-5'
